@@ -3,6 +3,7 @@
 #include <ESP8266WiFi.h>
 #include <time.h>
 #include <FTPClient_Generic.h>
+#include <ESP8266WebServer.h>
 #include "secret_define.h"
 
 #define DEBUG_MSG 1 //シリアルで処理メッセージを出力するためのフラグ
@@ -12,9 +13,6 @@
 extern "C" {
   #include "user_interface.h"
 }
-
-const char* ssid     = MYSSID;
-const char* password = SSID_PASS;
 
 const char* host = FTP_SERVER;
 const char* url = CONFIG_FILE;
@@ -42,15 +40,104 @@ struct tm tm_base;
 time_t t_base;
 int sec_span = span * 3600; // 水やりの時間(jsonファイルをダウンロードして更新する)
 int sec_loop = 1 * 3600; // 死活ログの時間(秒)
-//int sec_loop = 10; // 死活ログの時間(秒) // デバッグ用
-
 
 const int motorPin =  12;      // the number of the MOTOR pin
 
+// Wi-Fi設定保存ファイル
+const char* settings = "/wifi_settings.txt";
+// サーバモード起動時のパスワード
+const String pass = ESP_PASS;
+ESP8266WebServer server(80);
+
+/**
+ * WiFi設定画面
+ */
+void handleRootGet() {
+  String html = "";
+  html += "<h1>WiFi Settings</h1>";
+  html += "<form method='post'>";
+  html += "  <input type='text' name='ssid' placeholder='ssid'><br>";
+  html += "  <input type='text' name='pass' placeholder='pass'><br>";
+  html += "  <input type='submit'><br>";
+  html += "</form>";
+  server.send(200, "text/html", html);
+}
+void handleRootPost() {
+  String ssid = server.arg("ssid");
+  String pass = server.arg("pass");
+
+  File f = SPIFFS.open(settings, "w");
+  f.println(ssid);
+  f.println(pass);
+  f.close();
+
+  String html = "";
+  html += "<h1>WiFi Settings</h1>";
+  html += ssid + "<br>";
+  html += pass + "<br>";
+  server.send(200, "text/html", html);
+}
+
+/**
+ * クライアントモードで設定ファイルを読み込み。
+ */
+void setup_client() {
+
+  File f = SPIFFS.open(settings, "r");
+  String ssid = f.readStringUntil('\n');
+  String pass = f.readStringUntil('\n');
+  f.close();
+
+  ssid.trim();
+  pass.trim();
+
+  Serial.println("SSID: " + ssid);
+  Serial.println("PASS: " + pass);
+
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  int cnt = 0;
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+    cnt += 1;
+    if(cnt > 30){//接続がうまく行かなかった場合。
+      Serial.println("");
+      Serial.println("WiFi not connected");
+      break;
+    }
+  }
+  if(cnt <= 30){ //接続がうまく行った場合。
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+  }
+}
+
+/**
+ * サーバモードで起動。
+ * SSIDはMACアドレス、パスワードは設定したもの。URLは192.168.4.1(つながらない場合は、設定用PCのIPアドレスの上位3セグメントを参照)
+ */
+void setup_server() {
+  byte mac[6];
+  WiFi.macAddress(mac);
+  String ssid = "";
+  for (int i = 0; i < 6; i++) {
+    ssid += String(mac[i], HEX);
+  }
+  Serial.println("SSID: " + ssid);
+  Serial.println("PASS: " + pass);
+  /* You can remove the password parameter if you want the AP to be open. */
+  WiFi.softAP(ssid.c_str(), pass.c_str());
+  server.on("/", HTTP_GET, handleRootGet);
+  server.on("/", HTTP_POST, handleRootPost);
+  server.begin();
+  Serial.println("HTTP server started.");
+}
 
 // サーバーに設定を見に行く
 // うまく見に行ければTrue、失敗したらFalse
-// ディープスリープの復帰後に毎回実施
+// スリープの復帰後に毎回実施
 bool checkConfig(){
   // Use WiFiClient class to create TCP connections
   // Connect to HTTP server
@@ -149,43 +236,25 @@ bool checkConfig(){
   return true;
 }
 
-// WiFiへの接続
-// ディープスリープの復帰後に毎回実施
-void connectWiFi(){
-#if DEBUG_MSG
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-#endif
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  //WiFiに接続できていなければ待つ
-  //接続完了したら抜ける
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.println("WiFi connected");
-#if DEBUG_MSG
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-#endif  
-}
-
-// 起動時と、ディープスリープ復帰後に実施する処理
+// 起動時と、スリープ復帰後に実施する処理
 void postDS(){
   //スリープモードの選択
   //    wifi_set_sleep_type(NONE_SLEEP_T);
   //    wifi_set_sleep_type(MODEM_SLEEP_T);
   wifi_set_sleep_type(NONE_SLEEP_T);
   // WiFiに接続する
-  connectWiFi();
+  setup_client();
   // 設定ファイルをダウンロードする
   bool flg = checkConfig();
   if(flg){
     Serial.println("Online Mode");  
   }else{
     Serial.println("Offline Mode");  
+    // サーバモードに入る
+    setup_server();
+    while(1){
+      server.handleClient();
+    }
   }
   // 時計をJST基準にする
   configTime( JST, 0, "ntp.nict.jp", "ntp.jst.mfeed.ad.jp");
@@ -202,7 +271,11 @@ void setup() {
   // Initialize Serial port
   Serial.begin(9600);
   while (!Serial) continue;
-  //WiFi処理
+
+  // ファイルシステム起動
+  SPIFFS.begin();
+
+  //WiFi設定＆Config読み込み処理
   postDS();
   
   // 残り時間計算
@@ -220,8 +293,8 @@ void setup() {
   Watering(ml);
   logWater(tm);
   logAlive(tm);
-  //delay(t_remain * 1000);//本番用
-  delay(30 * 1000); // デバッグ用
+  delay(t_remain * 1000);//本番用
+  //delay(30 * 1000); // デバッグ用
 }
 
 void Watering(int ml){
@@ -333,7 +406,7 @@ void loop() {
   tm = localtime(&t);//JST
   int t_remain = (59 - tm->tm_min) * 60 + (60 - tm->tm_sec);
   Serial.printf("Sleep %d seconds\n", t_remain);
-  //delay(t_remain * 1000);//本番用
-  delay(30 * 1000); // デバッグ用
+  delay(t_remain * 1000);//本番用
+  //delay(30 * 1000); // デバッグ用
 
 }

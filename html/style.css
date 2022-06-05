@@ -1,0 +1,59 @@
+body {
+    font-size: 100%;
+}
+
+p{
+    font-size: 200%;
+    text-align: center; 
+}
+select{
+    font-size: 125%;
+}
+input.submit{
+	padding: 10px;
+    font-size: 150%;
+    background-color: #F08080;
+    margin-left: auto;
+    margin-right: auto;
+}
+table , td, th {
+    font-size: 120%;
+	border: 1px solid #595959;
+	border-collapse: collapse;
+}
+table{
+	width: 90%;
+    margin-left: auto;
+    margin-right: auto;
+}
+td.item { 
+	padding: 3px;
+	width: 20%;
+	vertical-align: middle;
+	background-color: #F0FFFF;
+}
+td.value { 
+	padding: 3px;
+	width: 70%;
+	vertical-align: middle;
+}
+td.item2 { 
+	padding: 3px;
+	width: 40%;
+	vertical-align: middle;
+	background-color: #F0FFFF;
+}
+td.value2 { 
+	padding: 3px;
+	width: 50%;
+	vertical-align: middle;
+}
+div { 
+    text-align : center ; 
+}
+.even {
+	background: #fbf8f0;
+}
+.odd {
+	background: #fefcf9;
+}

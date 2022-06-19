@@ -291,7 +291,7 @@ void setup() {
   struct tm *tm;
   t = time(NULL);//JST
   tm = localtime(&t);//JST
-  int t_remain = (min_alive - tm->tm_min) * 60 - tm->tm_sec;
+  int t_remain = (min_alive - tm->tm_min % min_alive) * 60 - tm->tm_sec;
   Serial.printf("%d %04d/%02d/%02d %02d:%02d:%02d\n",
         t_remain, tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
         tm->tm_hour, tm->tm_min, tm->tm_sec);
@@ -401,12 +401,12 @@ void loop() {
   t = time(NULL);//JST
   tm = localtime(&t);//JST
   
-  int elapsed = int(difftime(t, t_base)); //configの設定時間からの経過時間(秒)
-  Serial.printf("elapsed time from config time : %d[s]\n", elapsed);
-  Serial.printf("elapsed time from scheduled time : %d[s]\n", elapsed % sec_span);
+  unsigned long long int elapsed = (unsigned long long int)(difftime(t, t_base)); //configの設定時間からの経過時間(秒)
+  Serial.printf("elapsed time from config time : %ld[s]\n", elapsed);
+  Serial.printf("elapsed time from scheduled time : %ld[s]\n", elapsed % sec_span);
   // もし経過時間が周期を超えたら、水やりをする
   // 水やり予定時間の前後だったら、水やりを実行する
-  if((elapsed % sec_span < (min_alive * 60 * 2)) || (elapsed % sec_span >= 0)){
+  if((elapsed % sec_span < (min_alive * 60 * 2)) && (elapsed % sec_span >= 0)){
     // 水やり
     Watering(ml);
     // ログ
@@ -426,10 +426,7 @@ void loop() {
   // 残り時間を確認してリープ
   t = time(NULL);//JST
   tm = localtime(&t);//JST
-  int t_remain = (min_alive - tm->tm_min) * 60 - tm->tm_sec;
-  if(t_remain < 0){
-    t_remain += min_alive * 60;
-  }
+  int t_remain = (min_alive - tm->tm_min % min_alive) * 60 - tm->tm_sec;
   Serial.printf("Sleep %d seconds\n", t_remain);
   delay(t_remain * 1000);//本番用
   //delay(30 * 1000); // デバッグ用

@@ -38,7 +38,8 @@ int sec_span = span * 3600; // 水やりの時間(jsonファイルをダウン�
 int min_alive = 5; // 死活ログの時間(分)
 bool flg_connected = false;//起動から、一度WIFIがつながっていたら、WIFI設定モードに入らないようにするためのフラグ。
 
-const int motorPin =  12;      // the number of the MOTOR pin
+const int motorPin =  12;     // the number of the MOTOR pin
+const int ledPin =  2;        // the number of the LED pin
 
 // Wi-Fi設定保存ファイル
 const char* settings = "/wifi_settings.txt";
@@ -252,10 +253,14 @@ void postDS(){
   }else if(!flg_connected){
     Serial.println("Offline Mode");  
     // サーバモードに入る
+    //この間は、LEDを点灯させる
+    pinMode(ledPin, OUTPUT);
+    digitalWrite(ledPin, LOW);//HIGHだと消灯、LOWだと点灯
     setup_server();
     while(1){
       server.handleClient();
     }
+    digitalWrite(ledPin, HIGH);
   }else if(flg_connected){//一度WIFIには接続されていて、設定ファイルをダウンロードできなかった場合は、ダウンロードリトライする。
     while(1){
       // WiFiに接続する
@@ -298,7 +303,7 @@ void setup() {
   Serial.printf("Sleep %d seconds\n", t_remain);
 
   //デバッグ用
-  Watering(ml);
+  Watering(30);//初回の水の量は30mlにする。
   logWater(tm);
   logAlive(tm);
 

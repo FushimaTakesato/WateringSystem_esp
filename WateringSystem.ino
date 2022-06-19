@@ -35,7 +35,8 @@ int ml = 0;
 struct tm tm_base;
 time_t t_base;
 int sec_span = span * 3600; // 水やりの時間(jsonファイルをダウンロードして更新する)
-int sec_loop = 1 * 3600; // 死活ログの時間(秒)
+int min_alive = 5; // 死活ログの時間(分)
+bool flg_connected = false;//起動から、一度WIFIがつながっていたら、WIFI設定モードに入らないようにするためのフラグ。
 
 const int motorPin =  12;      // the number of the MOTOR pin
 
@@ -248,12 +249,19 @@ void postDS(){
   bool flg = checkConfig();
   if(flg){
     Serial.println("Online Mode");  
-  }else{
+  }else if(!flg_connected){
     Serial.println("Offline Mode");  
     // サーバモードに入る
     setup_server();
     while(1){
       server.handleClient();
+    }
+  }else if(flg_connected){//一度WIFIには接続されていて、設定ファイルをダウンロードできなかった場合は、ダウンロードリトライする。
+    while(1){
+      // WiFiに接続する
+      setup_client();
+      // 設定ファイルをダウンロードする
+      flg = checkConfig();
     }
   }
   // 時計をJST基準にする
@@ -276,13 +284,14 @@ void setup() {
 
   //WiFi設定＆Config読み込み処理
   postDS();
+  flg_connected = true;//ここまできているということは、一度WIFIにつながったということ。
   
   // 残り時間計算
   time_t t;
   struct tm *tm;
   t = time(NULL);//JST
   tm = localtime(&t);//JST
-  int t_remain = (59 - tm->tm_min) * 60 + (60 - tm->tm_sec);
+  int t_remain = (min_alive - tm->tm_min) * 60 - tm->tm_sec;
   Serial.printf("%d %04d/%02d/%02d %02d:%02d:%02d\n",
         t_remain, tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
         tm->tm_hour, tm->tm_min, tm->tm_sec);
@@ -396,9 +405,8 @@ void loop() {
   Serial.printf("elapsed time from config time : %d[s]\n", elapsed);
   Serial.printf("elapsed time from scheduled time : %d[s]\n", elapsed % sec_span);
   // もし経過時間が周期を超えたら、水やりをする
-  // 水やり予定時間の20分前後だったら、水やりを実行する（このチェックが1時間に1回なので、この幅で大丈夫）
-
-  if((elapsed % sec_span < (20 * 60)) || (elapsed % sec_span > (sec_span - 20*60))){
+  // 水やり予定時間の前後だったら、水やりを実行する
+  if((elapsed % sec_span < (min_alive * 60 * 2)) || (elapsed % sec_span >= 0)){
     // 水やり
     Watering(ml);
     // ログ
@@ -418,7 +426,10 @@ void loop() {
   // 残り時間を確認してリープ
   t = time(NULL);//JST
   tm = localtime(&t);//JST
-  int t_remain = (59 - tm->tm_min) * 60 + (60 - tm->tm_sec);
+  int t_remain = (min_alive - tm->tm_min) * 60 - tm->tm_sec;
+  if(t_remain < 0){
+    t_remain += min_alive * 60;
+  }
   Serial.printf("Sleep %d seconds\n", t_remain);
   delay(t_remain * 1000);//本番用
   //delay(30 * 1000); // デバッグ用

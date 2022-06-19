@@ -411,7 +411,7 @@ void loop() {
   Serial.printf("elapsed time from scheduled time : %ld[s]\n", elapsed % sec_span);
   // もし経過時間が周期を超えたら、水やりをする
   // 水やり予定時間の前後だったら、水やりを実行する
-  if((elapsed % sec_span < (min_alive * 60 * 2)) && (elapsed % sec_span >= 0)){
+  if((elapsed % sec_span < (min_alive * 60 * 1.5)) && (elapsed % sec_span >= 0)){
     // 水やり
     Watering(ml);
     // ログ

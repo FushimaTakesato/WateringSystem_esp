@@ -10,10 +10,6 @@
 
 #define JST     3600*9
 
-extern "C" {
-  #include "user_interface.h"
-}
-
 const char* host = FTP_SERVER;
 const char* url = CONFIG_FILE;
 const uint16_t port = 80;
@@ -94,6 +90,10 @@ void setup_client() {
   Serial.println("SSID: " + ssid);
   Serial.println("PASS: " + pass);
 
+  //WIFI ON
+  WiFi.forceSleepWake();
+  WiFi.mode(WIFI_STA);
+  
   WiFi.begin(ssid.c_str(), pass.c_str());
   int cnt = 0;
   while (WiFi.status() != WL_CONNECTED) {
@@ -259,7 +259,6 @@ void postDS(){
   // 時計をJST基準にする
   configTime( JST, 0, "ntp.nict.jp", "ntp.jst.mfeed.ad.jp");
   delay(2000);// 少し待たないと更新されない  
-  wifi_set_sleep_type(LIGHT_SLEEP_T);
 
 }
 
@@ -293,6 +292,14 @@ void setup() {
   Watering(ml);
   logWater(tm);
   logAlive(tm);
+
+
+  // WIFI OFF
+  WiFi.disconnect();
+  WiFi.mode( WIFI_OFF );
+  WiFi.forceSleepBegin();
+  Serial.println("WiFi is down");
+  
   delay(t_remain * 1000);//本番用
   //delay(30 * 1000); // デバッグ用
 }
@@ -400,6 +407,13 @@ void loop() {
 
   // 死活報告
   logAlive(tm);
+
+
+  // WIFI OFF
+  WiFi.disconnect();
+  WiFi.mode( WIFI_OFF );
+  WiFi.forceSleepBegin();
+  Serial.println("WiFi is down");
 
   // 残り時間を確認してリープ
   t = time(NULL);//JST

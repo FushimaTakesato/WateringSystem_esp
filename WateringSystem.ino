@@ -35,7 +35,7 @@ int ml = 0;
 struct tm tm_base;
 time_t t_base;
 int sec_span = span * 3600; // 水やりの時間(jsonファイルをダウンロードして更新する)
-int min_alive = 5; // 死活ログの時間(分)
+int min_alive = 15; // 死活ログの時間(分)
 bool flg_connected = false;//起動から、一度WIFIがつながっていたら、WIFI設定モードに入らないようにするためのフラグ。
 
 const int motorPin =  12;     // the number of the MOTOR pin
@@ -46,6 +46,9 @@ const char* settings = "/wifi_settings.txt";
 // サーバモード起動時のパスワード
 const String pass = ESP_PASS;
 ESP8266WebServer server(80);
+// クライアントモード確定フラグ：一度クライアントになったら、途中から変更しない
+bool flg_client = false;
+
 
 /**
  * WiFi設定画面
@@ -102,7 +105,7 @@ void setup_client() {
     delay(500);
     Serial.print(".");
     cnt += 1;
-    if(cnt > 30){//接続がうまく行かなかった場合。
+    if((cnt > 30)&&(!flg_client)){//接続がうまく行かなかった場合。もし、過去（起動時から）にクライアントモードに接続していたら、サーバーモードにしない。
       Serial.println("");
       Serial.println("WiFi not connected");
       break;
@@ -113,6 +116,7 @@ void setup_client() {
     Serial.println("WiFi connected");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    flg_client = true;
   }
 }
 
